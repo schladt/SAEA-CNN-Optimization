@@ -22,21 +22,19 @@ SIGMA_MUTATION_RATE = 1 # sigma mutation rate
 X_MUTATION_RATE = 1 # x value mutation rate
 MAX_GENERATIONS = 10 # maximum number of generations
 CONVERGE_THRESHOLD = 0.001 # threshold for convergence of generational diversity
-FITNESS_ALPHA = 0.7 # fitness function alpha value
-FITNESS_BETA = 0.001 # fitness function beta value
+LOSS_TARGET = 0.5 # target loss value for calculating training time fitness
 NUM_DIMENSIONS = 3 # number of hyperparameters to optimize
 
 # CNN Hyperparameters
 BATCH_SIZE = 128
 NUM_CLASSES = 10
 NUM_EPOCHS = 10
-VALIDATION_TARGET = 95 # target validation accuracy
-TRAIN_CONCURRENT = 6 # number of models to train concurrently
+TRAIN_CONCURRENT = 5 # number of models to train concurrently
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Dataset
 DATA_DIR = '~/data/'
-DATASET = 'cifar'  # 'mnist' or 'cifar'
+DATASET = 'cifar'
 
 # ES Gnome class
 class Genome():
@@ -48,13 +46,11 @@ class Genome():
                  x=None, 
                  sigma=None,
                  num_dimensions=NUM_DIMENSIONS,
-                 fitness_alpha=FITNESS_ALPHA,
-                 fitness_beta=FITNESS_BETA,
                  data_dir=DATA_DIR,
                  dataset=DATASET,
-                 valid_target=VALIDATION_TARGET,
                  batch_size=BATCH_SIZE,
                  num_epochs=NUM_EPOCHS,
+                 loss_target=LOSS_TARGET
                  ):
         """
         Initialize genome
@@ -62,23 +58,22 @@ class Genome():
         self.x = x
         self.sigma = sigma
         self.num_dimensions = num_dimensions
-        self.fitness_alpha = fitness_alpha
-        self.fitness_beta = fitness_beta
         self.data_dir = data_dir
         self.dataset = dataset
-        self.valid_target = valid_target
         self.batch_size = batch_size
         self.num_epochs = num_epochs
-        self.fitness = 0
+        self.loss_target = loss_target
         self.valid_acc = 0
         self.train_acc = 0
+        self.train_loss = 0
+        self.loss_target_fitness = 0
         self.num_epochs_trained = 0
 
         if x is None:
             self.x = np.zeros(num_dimensions)
             self.x[0] = np.random.uniform(0, 0.2) # learning rate
             self.x[1] = np.random.uniform(0, 1) # momentum
-            self.x[2] = np.random.uniform(0, 0.001) # weight decay
+            self.x[2] = np.random.uniform(0, 0.05) # weight decay
 
         if sigma is None:
             self.sigma = np.zeros(num_dimensions)
@@ -106,22 +101,27 @@ class Genome():
                        device=DEVICE, 
                        train_loader=train_loader, 
                        valid_loader=valid_loader,
-                       valid_target=self.valid_target,
                        print_=True)
 
-        # Calculate fitness as a function of validation accuracy and number of batches trained
+        # calculate fitness as a function of validation accuracy and number of batches trained
         valid_acc = log_dict['valid_acc_per_epoch'][-1]
         train_acc = log_dict['train_acc_per_epoch'][-1]
-        num_epochs_trained = log_dict['num_epochs_trained']
-        fitness = (self.fitness_alpha * valid_acc) /( self.fitness_beta * num_epochs_trained * self.batch_size)
+        train_loss = log_dict['train_loss_per_batch'][-1]
+       
+        # find batch where training loss is less than loss_threshold
+        for i, acc in enumerate(log_dict['train_loss_per_batch']):
+            if acc < self.loss_target:
+                break
 
-        return fitness, valid_acc, train_acc, num_epochs_trained
+        loss_target_fitness = (1 - ((i+1) / len(log_dict['train_loss_per_batch'])))*100
+
+        return valid_acc, train_acc, train_loss, loss_target_fitness
         
     def __repr__(self):
         """
         Print genome
         """
-        return f'x: {self.x}, fitness: {self.fitness}, sigma: {self.sigma}'
+        return f'x: {self.x}, validation accuracy: {self.valid_acc}, loss target fitness: {self.loss_target_fitness}, sigma: {self.sigma}'
 
 # ES Helper Functions    
 def get_population_diversity(population):

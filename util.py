@@ -12,19 +12,14 @@ def get_loaders(data_dir, dataset='cifar', batch_size=128, train_transforms=None
     # Set up transforms
     if train_transforms is None:
         train_transforms = transforms.Compose([
-            transforms.Resize(64),
-            transforms.Grayscale(),
-            transforms.ToTensor(),
-        ])
-    if test_transforms is None:
-        test_transforms = transforms.Compose([
-            transforms.Resize(64),
-            transforms.Grayscale(),
             transforms.ToTensor(),
         ])
 
-    # Assert that image size is at least 63x63
-    assert train_transforms.transforms[0].size >= 63
+    if test_transforms is None:
+        test_transforms = transforms.Compose([
+            transforms.ToTensor(),
+        ])
+
 
     train_dataset = dataset(root=data_dir, train=True, download=download, transform=train_transforms)
     test_dataset = dataset(root=data_dir, train=False, download=download, transform=test_transforms)
@@ -64,7 +59,7 @@ class AlexNet(nn.Module):
             nn.ReLU())
 
         self.conv5 = nn.Sequential(
-            nn.Conv2d(384, 256, kernel_size=3, stride=2, padding=0),
+            nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(256),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=3, stride=2))
@@ -99,41 +94,44 @@ class SmallCNN(nn.Module):
     def __init__(self, num_classes=10, conv1_count=2, conv2_count=4, fc_size=128):
         super(SmallCNN, self).__init__()
 
-        # conv output size = [(W-K+2P)/S]+1
-        # maxpool output size = floor((W-K)/S)+1
-        conv1_output_shape = int(((64 - 3 + 2 * 1) / 1) + 1)
-        maxpool1_output_shape = int(((conv1_output_shape - 3) / 2) + 1)
-        conv2_output_shape = int(((maxpool1_output_shape - 3 + 2 * 1) / 1) + 1)
-        maxpool2_output_shape = int(((conv2_output_shape - 3) / 2) + 1)
-        fc_input_size = int(maxpool2_output_shape**2 * conv2_count)
-
-        # print(f'Conv 1 output shape: [{conv1_count}, {conv1_output_shape}, {conv1_output_shape}]')
-        # print(f'Pool 1 output shape: [{conv1_count}, {maxpool1_output_shape}, {maxpool1_output_shape}]')
-        # print(f'Conv 2 output shape: [{conv2_count}, {conv2_output_shape}, {conv2_output_shape}]')
-        # print(f'Pool 2 output shape: [{conv2_count}, {maxpool2_output_shape}, {maxpool2_output_shape}]')
-        # print(f'FC input size: {fc_input_size}')
-
-        self.layers = torch.nn.Sequential(
+        self.conv1 = torch.nn.Sequential(
             # Convolutional Layer 1
-            torch.nn.Conv2d(in_channels=1, out_channels=conv1_count, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(inplace=True),
-            torch.nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(3, 128, kernel_size=5, stride=2, padding=0),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=1)
+        )
 
+        self.conv2 = torch.nn.Sequential(
             # Convolutional Layer 2
-            torch.nn.Conv2d(in_channels=conv1_count, out_channels=conv2_count, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(inplace=True),
-            torch.nn.MaxPool2d(kernel_size=3, stride=2),
+            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=0),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=1)
+        )
 
+        self.conv3 = torch.nn.Sequential(
+            # Convolutional Layer 3
+            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=0),
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+        )
+
+        self.fc = torch.nn.Sequential(
             # Classifier
             torch.nn.Flatten(),
-            torch.nn.Linear(fc_input_size, fc_size),
+            torch.nn.Linear(512, fc_size),
             torch.nn.ReLU(inplace=True),
             torch.nn.Dropout(0.5),
             torch.nn.Linear(fc_size, num_classes)
         )
 
     def forward(self, x):
-        return self.layers(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.fc(x)
+        return x
 
     def get_num_params(self):
         model_parameters = filter(lambda p: p.requires_grad, self.parameters())
@@ -171,7 +169,7 @@ def _compute_epoch_loss(model, data_loader, loss_fn, device):
         return curr_loss
 
 
-def train_model(model, num_epochs, optimizer, device, train_loader, valid_loader=None, loss_fn=F.cross_entropy, logging_interval=100, print_=False, valid_target=None):
+def train_model(model, num_epochs, optimizer, device, train_loader, valid_loader=None, loss_fn=F.cross_entropy, logging_interval=1, print_=False, valid_target=None):
     log_dict = {
         'train_loss_per_batch': [],
         'train_acc_per_epoch': [],
@@ -185,6 +183,7 @@ def train_model(model, num_epochs, optimizer, device, train_loader, valid_loader
     for epoch in range(num_epochs):
         # = TRAINING = #
         model.train()
+        batch_num = 0
         for features, targets in train_loader:
             features = features.to(device)
             targets = targets.to(device)
@@ -201,7 +200,14 @@ def train_model(model, num_epochs, optimizer, device, train_loader, valid_loader
             # Logging
             log_dict['train_loss_per_batch'].append(loss.item())
 
+            if batch_num % logging_interval == 0 and print_:
+                print(f'Epoch: {epoch+1}/{num_epochs} | '
+                      f'Batch {batch_num}/{len(train_loader)} | '
+                      f'Loss: {loss.item():.4f}', end='\r')
+            batch_num += 1
+
         log_dict['num_epochs_trained'] = epoch + 1
+
         # = EVALUATION = #
         model.eval()
         with torch.set_grad_enabled(False):
