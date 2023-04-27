@@ -13,8 +13,15 @@ import os
 
 from util import *
 
+# CNN Hyperparameters
+BATCH_SIZE = 128
+NUM_CLASSES = 10
+NUM_EPOCHS = 10
+TRAIN_CONCURRENT = 5 # number of models to train concurrently
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 # ES Hyperparameters
-MU = 10 # initial population size
+MU = TRAIN_CONCURRENT * 2 # initial population size
 LAMBDA = MU * 2 # offspring population size
 SIGMA_CROSSOVER_RATE = 1 # sigma crossover rate
 X_CROSSOVER_RATE = 0.2 # x value crossover rate
@@ -22,15 +29,8 @@ SIGMA_MUTATION_RATE = 1 # sigma mutation rate
 X_MUTATION_RATE = 1 # x value mutation rate
 MAX_GENERATIONS = 10 # maximum number of generations
 CONVERGE_THRESHOLD = 0.001 # threshold for convergence of generational diversity
-LOSS_TARGET = 0.5 # target loss value for calculating training time fitness
+LOSS_TARGET = 1 # target loss value for calculating training time fitness
 NUM_DIMENSIONS = 3 # number of hyperparameters to optimize
-
-# CNN Hyperparameters
-BATCH_SIZE = 128
-NUM_CLASSES = 10
-NUM_EPOCHS = 10
-TRAIN_CONCURRENT = 5 # number of models to train concurrently
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Dataset
 DATA_DIR = '~/data/'
