@@ -86,6 +86,8 @@ class Genome():
     def get_fitness(self):
         """
         Calculate fitness as function of validation accuracy and number of batches trained
+        INPUT: self (Genome object), x must be initialized
+        OUTPUT: valid_acc, train_acc, train_loss, loss_target_fitness
         """
         # Get dataloaders
         train_loader, valid_loader = get_loaders(data_dir=self.data_dir, dataset=self.dataset, batch_size=self.batch_size, download=False)
