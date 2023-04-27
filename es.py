@@ -18,6 +18,7 @@ BATCH_SIZE = 128
 NUM_CLASSES = 10
 NUM_EPOCHS = 10
 TRAIN_CONCURRENT = 5 # number of models to train concurrently
+VALIDATION_TARGET = 100 # target validation accuracy
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # ES Hyperparameters
