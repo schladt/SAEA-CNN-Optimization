@@ -3,11 +3,11 @@ Class to represent surrogate models for SAEA of Hyperparameter Optimization
 Author: Mike Schladt 2023
 """
 
+import numpy as np
+from msvr.model.MSVR import MSVR # https://github.com/Analytics-for-Forecasting/msvr
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVR
-from sklearn.ensemble import GradientBoostingRegressor, VotingRegressor
-from sklearn.kernel_ridge import KernelRidge
+from sklearn.ensemble import RandomForestRegressor
 
 import numpy as np
 
@@ -18,28 +18,17 @@ class Surrogates():
 
     def __init__(self):
         """
-        In our experiments, we will use a support vector regressor (svr) (with RBF kernel), 
-        a kernel ridge regressor (krr) (with RBF kernel),
-        and a gradient boosting regressor (gbr) as our surrogate models. 
-        A voting ensemble will be used to combine the predictions of the three models. 
-        Because we have two objectives, we will train two models for each surrogate model type.
-        Models that begin with 1 are used to predict validation accuracy, 
-        and models that begin with 2 are used to predict the loss target fitness.
+        In our experiments, we will use two multi target support vector regressors 
+        (one with RBF kernel and one with laplacian kernel), we will also use a 
+        random forest regressor. A voting ensemble will be used to combine the
+        predictions of the three models.
         """
 
-        self.svr1 = SVR(kernel='rbf', C=100, gamma="scale", epsilon=.1, degree=3)
-        self.svr2 = SVR(kernel='rbf', C=100, gamma="scale", epsilon=.1, degree=3)
+        self.msvr_rbf = MSVR(kernel = 'rbf', C=100)
+        self.msvr_laplace = MSVR(kernel = 'laplacian', C=100)
+        self.rfr = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42)
 
-        self.krr1 = KernelRidge(alpha=1.0, kernel='rbf')
-        self.krr2 = KernelRidge(alpha=1.0, kernel='rbf')
-
-        self.gbr1 = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=1, random_state=42, loss="squared_error")
-        self.gbr2 = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=1, random_state=42, loss="squared_error")
-        
-        self.vr1 = VotingRegressor([('svr', self.svr1), ('gbr', self.gbr1)])
-        self.vr2 = VotingRegressor([('svr', self.svr2), ('gbr', self.gbr2)])
-
-    def train(self, X, y1, y2, verbose=True):
+    def train(self, X, y, verbose=True):
         """
         Trains surrogate models
         INPUT X: training data features = 3 dimensional numpy array (learning rate, momentum, weight decay)
@@ -52,98 +41,59 @@ class Surrogates():
         X = scaler.fit_transform(X)
 
         # split the data into training and testing sets for validation accuracy
-        train_features1, test_features1, train_labels1, test_labels1 = train_test_split(X, y1, test_size = 0.2, random_state = 42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 42)
 
-        # split the data into training and testing sets for loss target fitness
-        train_features2, test_features2, train_labels2, test_labels2 = train_test_split(X, y2, test_size = 0.2, random_state = 42)
-
-        # SVR validation accuracy
-        self.svr1.fit(train_features1, train_labels1);
-        predictions1 = self.svr1.predict(test_features1)
-        self.svr1_mae = np.mean(abs(predictions1 - test_labels1))
+        # MSVR with RBF kernel
+        self.msvr_rbf.fit(X_train, y_train)
+        y_pred = self.msvr_rbf.predict(X_test)
+        self.msvr_rbf_mae = np.mean(abs(y_pred - y_test))
         if verbose:
-            print('SVR: Mean Absolute Error for validation accuracy:', round(self.svr1_mae, 2), '%.')
+            print('MSVR (RBF): Mean Absolute Error:', round(self.msvr_rbf_mae, 2), '%.')
 
-        # SVR loss target fitness
-        self.svr2.fit(train_features2, train_labels2);
-        predictions2 = self.svr2.predict(test_features2)
-        self.svr2_mae = np.mean(abs(predictions2 - test_labels2))
+        # MSVR with Laplacian kernel
+        self.msvr_laplace.fit(X_train, y_train)
+        y_pred = self.msvr_laplace.predict(X_test)
+        self.msvr_laplace_mae = np.mean(abs(y_pred - y_test))
         if verbose:
-            print('SVR: Mean Absolute Error for loss target fitness:', round(self.svr2_mae, 2), '%.')
+            print('MSVR (Laplacian): Mean Absolute Error:', round(self.msvr_laplace_mae, 2), '%.')
 
-        # GBR validation accuracy
-        self.gbr1.fit(train_features1, train_labels1);
-        predictions1 = self.gbr1.predict(test_features1)
-        self.gbr1_mae = np.mean(abs(predictions1 - test_labels1))
+        # Random Forest Regressor
+        self.rfr.fit(X_train, y_train)
+        y_pred = self.rfr.predict(X_test)
+        self.rfr_mae = np.mean(abs(y_pred - y_test))
         if verbose:
-            print('Gradient Boosting: Mean Absolute Error for validation accuracy:', round(self.gbr1_mae, 2), '%.')
-
-        # GBR loss target fitness
-        self.gbr2.fit(train_features2, train_labels2);
-        predictions2 = self.gbr2.predict(test_features2)
-        self.gbr2_mae = np.mean(abs(predictions2 - test_labels2))
-        if verbose:
-            print('Gradient Boosting: Mean Absolute Error loss target fitness:', round(self.gbr2_mae, 2), '%.')
-
-        # # KRR validation accuracy
-        # self.krr1.fit(train_features1, train_labels1);
-        # predictions1 = self.krr1.predict(test_features1)
-        # self.krr1_mae = np.mean(abs(predictions1 - test_labels1))
-        # if verbose:
-        #     print('Kernel Ridge Regression: Mean Absolute Error for validation accuracy:', round(self.krr1_mae, 2), '%.')
-        
-        # # KRR loss target fitness
-        # self.krr2.fit(train_features2, train_labels2);
-        # predictions2 = self.krr2.predict(test_features2)
-        # self.krr2_mae = np.mean(abs(predictions2 - test_labels2))
-        # if verbose:
-        #     print('Kernel Ridge Regression: Mean Absolute Error for loss target fitness:', round(self.krr2_mae, 2), '%.')
-
-        # Voting Regressor validation accuracy
-        self.vr1.fit(train_features1, train_labels1);
-        predictions1 = self.vr1.predict(test_features1)
-        self.vr1_mae = np.mean(abs(predictions1 - test_labels1))
-        if verbose:
-            print('Ensemble: Mean Absolute Error for validation accuracy:', round(self.vr1_mae, 2), '%.')
-
-        # Voting Regressor loss target fitness
-        self.vr2.fit(train_features2, train_labels2);
-        predictions2 = self.vr2.predict(test_features2)
-        self.vr2_mae = np.mean(abs(predictions2 - test_labels2))
-        if verbose:
-            print('Ensemble: Mean Absolute Error for loss target fitness:', round(self.vr2_mae, 2), '%.') 
+            print('Random Forest Regressor: Mean Absolute Error:', round(self.rfr_mae, 2), '%.')
 
     def predict(self, X):
         """
         Predicts the validation accuracy and loss target fitness for a given set of hyperparameters
         INPUT X: 3 dimensional numpy array (learning rate, momentum, weight decay)
-        OUTPUT y1_pred: np array for predicted validation accuracies 
-        OUTPUT y2_pred: np array for loss target fitnesses
+        OUTPUT y_pred: 2 dimensional numpy array (validation accuracy, loss target fitness)
         """
         # Standardize data
         scaler = StandardScaler()
         X = scaler.fit_transform(X)
 
-        # Predict validation accuracy
-        y1_pred = self.vr1.predict(X)
+        # make predictions with each model
+        y_pred1 = self.msvr_rbf.predict(X)
+        y_pred2 = self.msvr_laplace.predict(X)
+        y_pred3 = self.rfr.predict(X)
 
-        # Predict loss target fitness
-        y2_pred = self.vr2.predict(X)
+        # get the average of each prediction
+        y_pred = (y_pred1 + y_pred2 + y_pred3) / 3
 
-        return y1_pred, y2_pred
-    
+        # limit the predictions to the range [0, 100]
+        y_pred = np.clip(y_pred, 0, 100)
+
+        return y_pred
+
     def get_mae(self):
         """
         Returns the mean absolute error for the validation accuracy and loss target fitness
         """
         mae_dict = {
-            'svr1_mae': self.svr1_mae,
-            'svr2_mae': self.svr2_mae,
-            'gbr1_mae': self.gbr1_mae,
-            'gbr2_mae': self.gbr2_mae,
-            # 'krr1_mae': self.krr1_mae,
-            # 'krr2_mae': self.krr1_mae,
-            'vr1_mae': self.vr1_mae,
-            'vr2_mae': self.vr2_mae
+            'msvr_rbf': self.msvr_rbf_mae,
+            'msvr_laplace': self.msvr_laplace_mae,
+            'rfr': self.rfr_mae
         }
         return mae_dict

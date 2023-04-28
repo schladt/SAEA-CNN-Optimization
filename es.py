@@ -16,14 +16,14 @@ from util import *
 # CNN Hyperparameters
 BATCH_SIZE = 128
 NUM_CLASSES = 10
-NUM_EPOCHS = 2
+NUM_EPOCHS = 10
 TRAIN_CONCURRENT = 5 # number of models to train concurrently
 VALIDATION_TARGET = 100 # target validation accuracy
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # ES Hyperparameters
-MAX_GENERATIONS = 4000 # maximum number of generations
-RETRAIN_FREQUENCY = 200 # number of generations to train each model on surrogate before retraining on full CNN
+RETRAIN_FREQUENCY = 1000 # number of generations to train each model on surrogate before retraining on full CNN
+MAX_GENERATIONS = RETRAIN_FREQUENCY * 4 # maximum number of generations
 MU = 20 # initial population size
 LAMBDA = MU * 5 # offspring population size
 SIGMA_CROSSOVER_RATE = 1 # sigma crossover rate
@@ -75,7 +75,7 @@ class Genome():
         if x is None:
             self.x = np.zeros(num_dimensions)
             self.x[0] = np.random.uniform(0, 0.2) # learning rate
-            self.x[1] = np.random.uniform(0, 1) # momentum
+            self.x[1] = np.random.uniform(0, 0.999) # momentum
             self.x[2] = np.random.uniform(0, 0.05) # weight decay
 
         if sigma is None:
