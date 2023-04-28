@@ -22,16 +22,17 @@ VALIDATION_TARGET = 100 # target validation accuracy
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # ES Hyperparameters
-MU = TRAIN_CONCURRENT * 2 # initial population size
-LAMBDA = MU * 2 # offspring population size
+MU = 20 # initial population size
+LAMBDA = MU * 5 # offspring population size
 SIGMA_CROSSOVER_RATE = 1 # sigma crossover rate
 X_CROSSOVER_RATE = 0.2 # x value crossover rate
 SIGMA_MUTATION_RATE = 1 # sigma mutation rate
 X_MUTATION_RATE = 1 # x value mutation rate
-MAX_GENERATIONS = 10 # maximum number of generations
+MAX_GENERATIONS = 100 # maximum number of generations
 CONVERGE_THRESHOLD = 0.001 # threshold for convergence of generational diversity
 LOSS_TARGET = 1 # target loss value for calculating training time fitness
 NUM_DIMENSIONS = 3 # number of hyperparameters to optimize
+RETRAIN_FREQUENCY = 50 # number of generations to train each model on surrogate before retraining on full CNN
 
 # Dataset
 DATA_DIR = '~/data/'

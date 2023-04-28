@@ -131,3 +131,19 @@ class Surrogates():
         y2_pred = self.vr2.predict(X)
 
         return y1_pred, y2_pred
+    
+    def get_mae(self):
+        """
+        Returns the mean absolute error for the validation accuracy and loss target fitness
+        """
+        mae_dict = {
+            'svr1_mae': self.svr1_mae,
+            'svr2_mae': self.svr2_mae,
+            'gbr1_mae': self.gbr1_mae,
+            'gbr2_mae': self.gbr2_mae,
+            'gpr1_mae': self.gpr1_mae1,
+            'gpr1_mae': self.gpr1_mae2,
+            'vr1_mae': self.vr1_mae,
+            'vr2_mae': self.vr2_mae
+        }
+        return mae_dict
