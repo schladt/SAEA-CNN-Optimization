@@ -16,23 +16,24 @@ from util import *
 # CNN Hyperparameters
 BATCH_SIZE = 128
 NUM_CLASSES = 10
-NUM_EPOCHS = 10
+NUM_EPOCHS = 2
 TRAIN_CONCURRENT = 5 # number of models to train concurrently
 VALIDATION_TARGET = 100 # target validation accuracy
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # ES Hyperparameters
+MAX_GENERATIONS = 4000 # maximum number of generations
+RETRAIN_FREQUENCY = 200 # number of generations to train each model on surrogate before retraining on full CNN
 MU = 20 # initial population size
 LAMBDA = MU * 5 # offspring population size
 SIGMA_CROSSOVER_RATE = 1 # sigma crossover rate
 X_CROSSOVER_RATE = 0.2 # x value crossover rate
 SIGMA_MUTATION_RATE = 1 # sigma mutation rate
 X_MUTATION_RATE = 1 # x value mutation rate
-MAX_GENERATIONS = 100 # maximum number of generations
-CONVERGE_THRESHOLD = 0.001 # threshold for convergence of generational diversity
+CONVERGE_THRESHOLD = 0.0001 # threshold for convergence of generational diversity
 LOSS_TARGET = 1 # target loss value for calculating training time fitness
 NUM_DIMENSIONS = 3 # number of hyperparameters to optimize
-RETRAIN_FREQUENCY = 50 # number of generations to train each model on surrogate before retraining on full CNN
+
 
 # Dataset
 DATA_DIR = '~/data/'
@@ -179,6 +180,45 @@ def sigma_crossover(self, other, crossover_rate=SIGMA_CROSSOVER_RATE):
 def fitness(genome):
     """Helper function for multiprocessing of fitness calculation"""
     return genome.get_fitness()
+
+def CrowdingDist(fitness=None):
+    """
+    Credit:
+    https://gist.github.com/CHI-MING-LEE/bb4eb11803b33140b71488b4ffead452/
+
+    :param fitness: A list of fitness values
+    :return: A list of crowding distances of chrmosomes
+    
+    The crowding-distance computation requires sorting the population according to each objective function value 
+    in ascending order of magnitude. Thereafter, for each objective function, the boundary solutions (solutions with smallest and largest function values) 
+    are assigned an infinite distance value. All other intermediate solutions are assigned a distance value equal to 
+    the absolute normalized difference in the function values of two adjacent solutions.
+    """
+
+    # initialize list: [0.0, 0.0, 0.0, ...]
+    distances = [0.0] * len(fitness)
+    crowd = [(f_value, i) for i, f_value in enumerate(fitness)]  # create keys for fitness values
+
+    n_obj = len(fitness[0])
+
+    for i in range(n_obj):  # calculate for each objective
+        crowd.sort(key=lambda element: element[0][i])
+        # After sorting,  boundary solutions are assigned Inf 
+        # crowd: [([obj_1, obj_2, ...], i_0), ([obj_1, obj_2, ...], i_1), ...]
+        distances[crowd[0][1]] = float("Inf")
+        distances[crowd[-1][1]] = float("inf")
+        if crowd[-1][0][i] == crowd[0][0][i]:  # If objective values are same, skip this loop
+            continue
+        # normalization (max - min) as Denominator
+        norm = float(crowd[-1][0][i] - crowd[0][0][i])
+        # crowd: [([obj_1, obj_2, ...], i_0), ([obj_1, obj_2, ...], i_1), ...]
+        # calculate each individual's Crowding Distance of i th objective
+        # technique: shift the list and zip
+        for prev, cur, next in zip(crowd[:-2], crowd[1:-1], crowd[2:]):
+            distances[cur[1]] += (next[0][i] - prev[0][i]) / norm  # sum up the distance of ith individual along each of the objectives
+
+    return distances
+
 
 def run_es(
     mu=MU,

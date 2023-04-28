@@ -6,9 +6,8 @@ Author: Mike Schladt 2023
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RationalQuadratic, RBF, ConstantKernel as C
 from sklearn.ensemble import GradientBoostingRegressor, VotingRegressor
+from sklearn.kernel_ridge import KernelRidge
 
 import numpy as np
 
@@ -20,7 +19,7 @@ class Surrogates():
     def __init__(self):
         """
         In our experiments, we will use a support vector regressor (svr) (with RBF kernel), 
-        a gaussian process regressor (gpr) (with RBF + quadratic Kernels),
+        a kernel ridge regressor (krr) (with RBF kernel),
         and a gradient boosting regressor (gbr) as our surrogate models. 
         A voting ensemble will be used to combine the predictions of the three models. 
         Because we have two objectives, we will train two models for each surrogate model type.
@@ -30,15 +29,15 @@ class Surrogates():
 
         self.svr1 = SVR(kernel='rbf', C=100, gamma="scale", epsilon=.1, degree=3)
         self.svr2 = SVR(kernel='rbf', C=100, gamma="scale", epsilon=.1, degree=3)
-        kernel = C(1.0, (1e-3, 1e4)) * RationalQuadratic(alpha=0.1, length_scale_bounds=(1e-2, 1e2)) + RBF(1.0, (1e-3, 1e4))
-        self.gpr1 = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=9)
-        self.gpr2 = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=9)
+
+        self.krr1 = KernelRidge(alpha=1.0, kernel='rbf')
+        self.krr2 = KernelRidge(alpha=1.0, kernel='rbf')
 
         self.gbr1 = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=1, random_state=42, loss="squared_error")
         self.gbr2 = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=1, random_state=42, loss="squared_error")
         
-        self.vr1 = VotingRegressor([('svr', self.svr1), ('gbr', self.gbr1), ('gpr', self.gpr1)])
-        self.vr2 = VotingRegressor([('svr', self.svr2), ('gbr', self.gbr2), ('gpr', self.gpr2)])
+        self.vr1 = VotingRegressor([('svr', self.svr1), ('gbr', self.gbr1)])
+        self.vr2 = VotingRegressor([('svr', self.svr2), ('gbr', self.gbr2)])
 
     def train(self, X, y1, y2, verbose=True):
         """
@@ -86,18 +85,19 @@ class Surrogates():
         if verbose:
             print('Gradient Boosting: Mean Absolute Error loss target fitness:', round(self.gbr2_mae, 2), '%.')
 
-        # GPR validation accuracy
-        self.gpr1.fit(train_features1, train_labels1);
-        predictions1 = self.gpr1.predict(test_features1)
-        self.gpr1_mae1 = np.mean(abs(predictions1 - test_labels1))
-        if verbose:
-            print('Gaussian Process Regression: Mean Absolute Error for validation accuracy:', round(self.gpr1_mae1 , 2), '%.')
-
-        # GP loss target fitness
-        self.gpr2.fit(train_features2, train_labels2);
-        predictions2 = self.gpr2.predict(test_features2)
-        self.gpr1_mae2 = np.mean(abs(predictions2 - test_labels2))
-        print('Gaussian Process Regression: Mean Absolute Error for loss target fitness:', round(self.gpr1_mae2, 2), '%.')
+        # # KRR validation accuracy
+        # self.krr1.fit(train_features1, train_labels1);
+        # predictions1 = self.krr1.predict(test_features1)
+        # self.krr1_mae = np.mean(abs(predictions1 - test_labels1))
+        # if verbose:
+        #     print('Kernel Ridge Regression: Mean Absolute Error for validation accuracy:', round(self.krr1_mae, 2), '%.')
+        
+        # # KRR loss target fitness
+        # self.krr2.fit(train_features2, train_labels2);
+        # predictions2 = self.krr2.predict(test_features2)
+        # self.krr2_mae = np.mean(abs(predictions2 - test_labels2))
+        # if verbose:
+        #     print('Kernel Ridge Regression: Mean Absolute Error for loss target fitness:', round(self.krr2_mae, 2), '%.')
 
         # Voting Regressor validation accuracy
         self.vr1.fit(train_features1, train_labels1);
@@ -141,8 +141,8 @@ class Surrogates():
             'svr2_mae': self.svr2_mae,
             'gbr1_mae': self.gbr1_mae,
             'gbr2_mae': self.gbr2_mae,
-            'gpr1_mae': self.gpr1_mae1,
-            'gpr1_mae': self.gpr1_mae2,
+            # 'krr1_mae': self.krr1_mae,
+            # 'krr2_mae': self.krr1_mae,
             'vr1_mae': self.vr1_mae,
             'vr2_mae': self.vr2_mae
         }
