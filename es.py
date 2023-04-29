@@ -23,7 +23,7 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # ES Hyperparameters
 RETRAIN_FREQUENCY = 1000 # number of generations to train each model on surrogate before retraining on full CNN
-MAX_GENERATIONS = RETRAIN_FREQUENCY * 4 # maximum number of generations
+MAX_GENERATIONS = RETRAIN_FREQUENCY * 15 # maximum number of generations
 MU = 20 # initial population size
 LAMBDA = MU * 5 # offspring population size
 SIGMA_CROSSOVER_RATE = 1 # sigma crossover rate
