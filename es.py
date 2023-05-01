@@ -22,8 +22,8 @@ VALIDATION_TARGET = 100 # target validation accuracy
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # ES Hyperparameters
-# RETRAIN_FREQUENCY = 1000 # number of generations to train each model on surrogate before retraining on full CNN
-# MAX_GENERATIONS = RETRAIN_FREQUENCY * 15 # maximum number of generations
+RETRAIN_FREQUENCY = 1000 # number of generations to train each model on surrogate before retraining on full CNN
+MAX_GENERATIONS = RETRAIN_FREQUENCY * 15 # maximum number of generations
 MAX_GENERATIONS = 10
 MU = 10 # initial population size
 LAMBDA = MU * 2 # offspring population size
